@@ -9,12 +9,12 @@ import random
 app = Flask(__name__)
 CORS(app)
 
-vehicle = None
-vehicle_lock = threading.Lock()
-stop_move_to_flag = False
-detected_number_plate = None
+vehicle = None  
+vehicle_lock = threading.Lock()  
+stop_move_to_flag = False  
+detected_number_plate = None  
 
-number_plates = ["AP12AB1234", "TS10CD5678", "MH20EF9012", "KA05GH3456", "DL03IJ7890"]
+number_plates = ["AP12AB1234", "TS10CD5678", "MH20EF9012", "KA05GH3456", "DL03IJ7890"]  # Sample plates
 
 def get_vehicle():
     """Connects to the vehicle if not already connected."""
@@ -26,7 +26,7 @@ def get_vehicle():
                 vehicle = connect("tcp:127.0.0.1:5760", wait_ready=True, timeout=60)
                 print("Vehicle connected successfully!")
             except Exception as e:
-                print(f"Failed to connect: {e}")
+                print("Failed to connect: {}".format(e))
                 return None
     return vehicle
 
@@ -48,7 +48,7 @@ def get_data():
                 "Speed": vehicle.groundspeed,
                 "Heading": vehicle.heading,
                 "Armed": vehicle.armed,
-                "NumberPlate": detected_number_plate
+                "NumberPlate": detected_number_plate  
             }
         return jsonify(data)
     else:
@@ -68,12 +68,12 @@ def move_to_target(lat, lon):
             time.sleep(2)
 
     target_location = LocationGlobalRelative(lat, lon, vehicle.location.global_relative_frame.alt)
-
+    
     with vehicle_lock:
         vehicle.simple_goto(target_location)
-        print(f"Moving to ({lat}, {lon})...")
+        print("Moving to ({}, {})...".format(lat, lon))
 
-    detected_number_plate = None
+    detected_number_plate = None  
 
     while True:
         if stop_move_to_flag:
@@ -82,12 +82,12 @@ def move_to_target(lat, lon):
 
         with vehicle_lock:
             distance = get_distance_to_target(vehicle, lat, lon)
-
-        if distance < 2:
+        
+        if distance < 2:  
             detected_number_plate = random.choice(number_plates)
-            print(f"Arrived at ({lat}, {lon}). Detected Number Plate: {detected_number_plate}")
+            print("Arrived at ({}, {}). Detected Number Plate: {}".format(lat, lon, detected_number_plate))
             return
-
+        
         time.sleep(0.5)
 
 def get_distance_to_target(vehicle, lat, lon):
@@ -100,9 +100,9 @@ def get_distance_to_target(vehicle, lat, lon):
 def move_to_location():
     """Starts moving the vehicle to a given location in a separate thread."""
     global stop_move_to_flag
-    stop_move_to_flag = False
+    stop_move_to_flag = False  
 
-    data = request.get_json()
+    data = request.json
     lat = data.get("latitude")
     lon = data.get("longitude")
 
@@ -110,16 +110,16 @@ def move_to_location():
         return jsonify({"error": "Latitude and Longitude are required"}), 400
 
     move_thread = threading.Thread(target=move_to_target, args=(lat, lon))
-    move_thread.setDaemon(True)  # ✅ Correct way for Python 3.6-3.10 (Flask 2.0.3 compatible)
+    move_thread.daemon = True  
     move_thread.start()
 
-    return jsonify({"message": f"Moving to ({lat}, {lon})"})
+    return jsonify({"message": "Moving to ({}, {})".format(lat, lon)})
 
 @app.route('/stop', methods=['POST'])
 def stop_vehicle():
     """Stops the vehicle and any auto movement immediately."""
     global stop_move_to_flag
-    stop_move_to_flag = True
+    stop_move_to_flag = True  
 
     vehicle = get_vehicle()
     if vehicle is None:
@@ -130,10 +130,7 @@ def stop_vehicle():
         vehicle.mode = VehicleMode("GUIDED")
         msg = vehicle.message_factory.set_position_target_local_ned_encode(
             0, 0, 0, mavutil.mavlink.MAV_FRAME_LOCAL_NED,
-            0b0000111111000111,
-            0, 0, 0,
-            0, 0, 0,
-            0, 0, 0
+            0b0000111111000111, 0, 0, 0, 0, 0, 0, 0, 0, 0
         )
         vehicle.send_mavlink(msg)
         vehicle.flush()
@@ -150,7 +147,7 @@ def move_vehicle():
     if vehicle is None:
         return jsonify({"error": "Vehicle not connected"}), 500
 
-    data = request.get_json()
+    data = request.json
     direction = data.get("direction")
 
     if direction not in ["forward", "backward", "left", "right", "stop"]:
@@ -163,21 +160,22 @@ def move_vehicle():
 
     velocity_x = 2 if direction == "forward" else -2 if direction == "backward" else 0
     velocity_y = 2 if direction == "right" else -2 if direction == "left" else 0
-    velocity_z = 0
+    velocity_z = 0  
 
     with vehicle_lock:
         msg = vehicle.message_factory.set_position_target_local_ned_encode(
             0, 0, 0, mavutil.mavlink.MAV_FRAME_LOCAL_NED,
-            0b0000111111000111,
-            0, 0, 0,
-            velocity_x, velocity_y, velocity_z,
-            0, 0, 0
+            0b0000111111000111, 0, 0, 0, velocity_x, velocity_y, velocity_z, 0, 0, 0
         )
         vehicle.send_mavlink(msg)
         vehicle.flush()
 
-    return jsonify({"message": f"Moving {direction} at 2 m/s" if direction != "stop" else "Vehicle stopped."})
+    if direction != "stop":
+        message = "Moving {} at 2 m/s".format(direction)
+    else:
+        message = "Vehicle stopped."
+
+    return jsonify({"message": message})
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True, use_reloader=False)
-

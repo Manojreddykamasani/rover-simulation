@@ -5,7 +5,7 @@ from flask_cors import CORS
 import threading
 import time
 import random
-
+from math import radians, sin, cos, sqrt, atan2
 app = Flask(__name__)
 CORS(app)
 
@@ -23,7 +23,7 @@ def get_vehicle():
         if vehicle is None:
             print("Connecting to vehicle...")
             try:
-                vehicle = connect("tcp:127.0.0.1:5760", wait_ready=True, timeout=60)
+                vehicle = connect("tcp:127.0.0.1:5763", wait_ready=True, timeout=60)
                 print("Vehicle connected successfully!")
             except Exception as e:
                 print("Failed to connect: {}".format(e))
@@ -79,9 +79,9 @@ def move_to_target(lat, lon):
         if stop_move_to_flag:
             print("Stopping move_to due to manual override or stop command.")
             return
-
         with vehicle_lock:
             distance = get_distance_to_target(vehicle, lat, lon)
+            print(distance)
         
         if distance < 2:  
             detected_number_plate = random.choice(number_plates)
@@ -90,11 +90,30 @@ def move_to_target(lat, lon):
         
         time.sleep(0.5)
 
-def get_distance_to_target(vehicle, lat, lon):
-    """Calculates approximate distance to the target location."""
+def get_distance_to_target(vehicle, target_lat, target_lon):
+    """Calculates the great-circle distance between current location and target in meters using Haversine formula."""
     current_lat = vehicle.location.global_frame.lat
     current_lon = vehicle.location.global_frame.lon
-    return ((current_lat - lat) ** 2 + (current_lon - lon) ** 2) ** 0.5 * 111000
+
+    if current_lat is None or current_lon is None:
+        return float('inf')  # Avoid false detection
+
+    # Convert latitude and longitude from degrees to radians
+    lat1 = radians(current_lat)
+    lon1 = radians(current_lon)
+    lat2 = radians(target_lat)
+    lon2 = radians(target_lon)
+
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    R = 6371000  # Earth radius in meters
+    distance = R * c
+
+    return distance
 
 @app.route('/move_to', methods=['POST'])
 def move_to_location():

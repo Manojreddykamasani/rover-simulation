@@ -23,7 +23,7 @@ def get_vehicle():
         if vehicle is None:
             print("Connecting to vehicle...")
             try:
-                vehicle = connect("tcp:127.0.0.1:5760", wait_ready=True, timeout=60)
+                vehicle = connect("udp:127.0.0.1:14550", wait_ready=True, timeout=60)
                 print("Vehicle connected successfully!")
             except Exception as e:
                 print("Failed to connect: {}".format(e))

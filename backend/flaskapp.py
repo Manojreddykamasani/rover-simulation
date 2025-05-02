@@ -215,5 +215,56 @@ def move_vehicle():
 @app.route('/')
 def home():
     return "Hello from Rover"
+@app.route('/arm', methods=['POST'])
+def arm_vehicle():
+    """Arms the vehicle if it's armable."""
+    vehicle = get_vehicle()
+    if vehicle is None:
+        return jsonify({"error": "Vehicle not connected"}), 500
+
+    with vehicle_lock:
+        if not vehicle.is_armable:
+            return jsonify({"error": "Vehicle is not armable yet (check sensors/GPS)"}), 400
+
+        print("Arming vehicle...")
+        vehicle.mode = VehicleMode("GUIDED")
+        time.sleep(2)
+
+        vehicle.armed = True
+
+        # Wait until the vehicle is armed
+        timeout = time.time() + 10  # wait max 10 seconds
+        while not vehicle.armed and time.time() < timeout:
+            print("Waiting for arming...")
+            time.sleep(1)
+
+        if vehicle.armed:
+            return jsonify({"message": "Vehicle is now armed."})
+        else:
+            return jsonify({"error": "Failed to arm the vehicle."}), 500
+
+
+@app.route('/disarm', methods=['POST'])
+def disarm_vehicle():
+    """Disarms the vehicle."""
+    vehicle = get_vehicle()
+    if vehicle is None:
+        return jsonify({"error": "Vehicle not connected"}), 500
+
+    with vehicle_lock:
+        print("Disarming vehicle...")
+        vehicle.armed = False
+
+        # Wait until the vehicle is disarmed
+        timeout = time.time() + 10  # wait max 10 seconds
+        while vehicle.armed and time.time() < timeout:
+            print("Waiting for disarming...")
+            time.sleep(1)
+
+        if not vehicle.armed:
+            return jsonify({"message": "Vehicle is now disarmed."})
+        else:
+            return jsonify({"error": "Failed to disarm the vehicle."}), 500
+
 if __name__ == "__main__":
     app.run(port=5000, debug=True, use_reloader=False)

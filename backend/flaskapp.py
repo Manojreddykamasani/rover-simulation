@@ -265,6 +265,33 @@ def disarm_vehicle():
             return jsonify({"message": "Vehicle is now disarmed."})
         else:
             return jsonify({"error": "Failed to disarm the vehicle."}), 500
+@app.route('/calibrate', methods=['POST'])
+def calibrate():
+    calibration_type = request.json.get('type', 'accel')
+    
+    if calibration_type == 'accel':
+        # Send accel calibration command
+        vehicle._master.mav.command_long_send(
+            vehicle._master.target_system,
+            vehicle._master.target_component,
+            mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION,
+            0,
+            1, 0, 0, 0, 0, 0, 0
+        )
+        return jsonify({'status': 'Accelerometer calibration started'})
+    elif calibration_type == 'compass':
+        # Compass calibration
+        vehicle._master.mav.command_long_send(
+            vehicle._master.target_system,
+            vehicle._master.target_component,
+            mavutil.mavlink.MAV_CMD_DO_START_MAG_CAL,
+            0,
+            0, 0, 0, 0, 0, 0, 0
+        )
+        return jsonify({'status': 'Compass calibration started'})
+    else:
+        return jsonify({'status': 'Invalid calibration type'}), 400
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True, use_reloader=False)

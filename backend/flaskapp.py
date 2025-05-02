@@ -23,7 +23,7 @@ def get_vehicle():
         if vehicle is None:
             print("Connecting to vehicle...")
             try:
-                vehicle = connect("tcp:127.0.0.1:5763", wait_ready=True, timeout=60)
+                vehicle = connect("tcp:127.0.0.1:5760", wait_ready=True, timeout=60)
                 print("Vehicle connected successfully!")
             except Exception as e:
                 print("Failed to connect: {}".format(e))
@@ -32,27 +32,44 @@ def get_vehicle():
 
 @app.route('/data', methods=['GET'])
 def get_data():
-    """Retrieves vehicle telemetry data and detected number plate."""
     vehicle = get_vehicle()
     if vehicle:
-        with vehicle_lock:
-            data = {
-                "Mode": vehicle.mode.name,
-                "Latitude": vehicle.location.global_frame.lat,
-                "Longitude": vehicle.location.global_frame.lon,
-                "Yaw": vehicle.attitude.yaw,
-                "Altitude": vehicle.location.global_relative_frame.alt,
-                "Velocity": list(vehicle.velocity),
-                "Pitch": vehicle.attitude.pitch,
-                "Roll": vehicle.attitude.roll,
-                "Speed": vehicle.groundspeed,
-                "Heading": vehicle.heading,
-                "Armed": vehicle.armed,
-                "NumberPlate": detected_number_plate  
-            }
+        print("Battery:", vehicle.battery)
+        print("GPS:", vehicle.gps_0)
+        print("System Status:", vehicle.system_status)
+        print("Commands:", vehicle.commands)
+        print("Channels:", vehicle.channels)
+
+        data = {
+            "Mode": vehicle.mode.name,
+            "Latitude": vehicle.location.global_frame.lat,
+            "Longitude": vehicle.location.global_frame.lon,
+            "Yaw": vehicle.attitude.yaw,
+            "Altitude": vehicle.location.global_relative_frame.alt,
+            "Velocity": vehicle.velocity,
+            "Pitch": vehicle.attitude.pitch,
+            "Roll": vehicle.attitude.roll,
+            "Speed": vehicle.groundspeed,
+            "Heading": vehicle.heading,
+            "Armed": vehicle.armed,
+            # Extra monitoring
+            "BatteryVoltage": getattr(vehicle.battery, 'voltage', None),
+            "BatteryCurrent": getattr(vehicle.battery, 'current', None),
+            "BatteryLevel": getattr(vehicle.battery, 'level', None),
+            "IsArmable": vehicle.is_armable,
+            "EKFStatus": vehicle.ekf_ok,
+            "GPSFixType": getattr(vehicle.gps_0, 'fix_type', None),
+            "SatellitesVisible": getattr(vehicle.gps_0, 'satellites_visible', None),
+            "SystemStatus": getattr(vehicle.system_status, 'state', None),
+            "RCChannels": vehicle.channels,
+            "Waypoint": getattr(vehicle.commands, 'next', None),
+            "TotalWaypoints": len(vehicle.commands),
+            "LastHeartbeat": vehicle.last_heartbeat
+        }
         return jsonify(data)
     else:
         return jsonify({"error": "Vehicle not connected"}), 500
+
 
 def move_to_target(lat, lon):
     """Moves the vehicle to a target location and assigns a number plate after reaching."""
@@ -195,6 +212,8 @@ def move_vehicle():
         message = "Vehicle stopped."
 
     return jsonify({"message": message})
-
+@app.route('/')
+def home():
+    return "Hello from Rover"
 if __name__ == "__main__":
     app.run(port=5000, debug=True, use_reloader=False)
